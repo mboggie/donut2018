@@ -86,8 +86,8 @@
 <body>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 
-<div class="masthead"><h1>Senate Race Update</h1>
-<p>Democrats need to win 27 for an even Senate, 28 to win a majority</p>
+<div class="masthead"><h1>House Race Update</h1>
+<p>All seats are up for grabs; 218 is a majority</p>
 <p id="updates">Updates go here</p></div>
 
 <script>
@@ -119,7 +119,7 @@ function cleanUp(races) {
                     contest['winner'] = "GOP";
                 }
             }
-            else if((c[2] == "Dem") || (c[1] == "Sanders")){
+            else if(c[2] == "Dem"){
                 contest['dem'] = c[0] + " " + c[1];
                 contest['dpct'] = (c[3]*100).toFixed(2);
                 if(c[7] == 1) {
@@ -182,7 +182,7 @@ const maxX = 100;
 //SVG setup
 const margin = {top: 10, right: 30, bottom: 30, left: 30},
       width = 800 - margin.left - margin.right,
-      height = 360 - margin.top - margin.bottom;
+      height = 800 - margin.top - margin.bottom;
 
 //x scales
 const x = d3.scaleLinear()
@@ -215,23 +215,15 @@ function update() {
     var rawdata = {};
     var data = [];
     
-    // special senate logic ---
-    rawdata = bulkdata.S;
-    totals = bulkdata.totals.S;
+    // special house logic ---
+    rawdata = bulkdata.H;
+    totals = bulkdata.totals.H;
 
     // update the cutline
     cutline = d3.select("#updates")
-                .html(`Current Senate (including uncontested races):<br />${totals.r_notup+totals.r_win} R, ${totals.d_notup+totals.d_win} D; Waiting on ${totals.no_result} more`);
+                .html(`Current House (including uncontested races):<br />${totals.r_notup+totals.r_win} R, ${totals.d_notup+totals.d_win} D; Waiting on ${totals.no_result} more`);
 
-
-    // append special Senate races to the overall Senate view
-    sst = Object.keys(bulkdata.S_s);
-    sst.forEach(function(r){
-        key = "s" + r;
-        rawdata[key] = bulkdata.S_s[r];
-    });
-
-    // --- end special senate logic
+    // --- end special house logic
 
     // clean up the  data for display
     data = cleanUp(rawdata);
