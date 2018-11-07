@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+    .masthead {
+        text-align:center;
+        font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+    .masthead h1 {
+        font-size:3em;
+        font-weight:bold;
+    }
+    .masthead p {
+        font-size:1em;
+        font-weight:normal;
+    }
+    .enter {
+        fill: rgb(197, 197, 197);
+      stroke: rgb(100, 100, 100);
+    }
+    
+    .Dem {
+        fill:#1FBAD6;
+        stroke:rgb(31, 58, 214);
+    }
+
+    .GOP {
+        fill:#F25754;
+        stroke:rgb(207, 13, 10);
+    }
+
+    H2.GOP {
+        color:rgb(207,13,10);
+    }
+
+    H2.Dem{
+        color:rgb(31,58,214);
+    }
+
+    .update {
+      fill: #1FBAD6;
+    }
+    
+    .exit {
+      fill: #F25754;
+    }
+    
+    .selected {
+      fill: rgb(38, 236, 48);
+    }
+    
+    div.tooltip {
+      color: black;
+      position: absolute;
+      text-align: left;
+      width: auto;
+      height: auto;
+      padding: 5px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      font-size: 12px;
+      background: rgb(235, 235, 235);
+      border-color: rgb(51, 51, 51);
+      border: 2px solid;
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    div.tooltip.GOP {
+        background: #F25754;
+        border-color: rgb(207, 13, 10);
+    }
+
+    svg {
+        margin: 0 auto;
+        display: block;
+    }
+
+    .result {
+        float: right;
+        margin-left: 10px;
+        width:auto;
+    }
+    
+</style>    
+    
+<body>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+
+<div class="masthead"><h1>Governors&rsquo; Race Updates</h1>
+<p>This one&rsquo;s just for fun</p>
+<p id="updates">Updates go here</p></div>
+
+<script>
+
+//reusable functions
+
+//// Munge the data we received in the data feed from Gerald
+function cleanUp(races) {
+    var result = [];
+    o = Object.keys(races);
+    o.forEach(function(r) {
+        contest = {};
+        contest['winner'] = null;
+        contest['incumbent'] = null;
+        contest['race'] = races[r][1];
+        contest['id'] = r;
+        races[r][2].forEach(function(c){
+            if(c[2] == "GOP"){
+                contest['gop'] = c[0] + " " + c[1];
+                contest['rpct'] = (c[3]*100).toFixed(2);
+                if(c[7] == 1) {
+                    contest['incumbent'] = "GOP";
+                }
+                if(c[6] == 1){
+                    contest['dem'] = "Unopposed";
+                    contest['dpct'] = 0.0;
+                }
+                if((c[5] == 1) || (c[6] == 1)){
+                    contest['winner'] = "GOP";
+                }
+            }
+            else if((c[2] == "Dem")){
+                contest['dem'] = c[0] + " " + c[1];
+                contest['dpct'] = (c[3]*100).toFixed(2);
+                if(c[7] == 1) {
+                    contest['incumbent'] = "Dem";
+                }
+                if(c[6] == 1){
+                    contest['gop'] = "Unopposed";
+                    contest['rpct'] = 0.0;
+                }
+                if((c[5] == 1) || (c[6] == 1)){
+                    contest['winner'] = "Dem";
+                }
+            }   
+        })
+        contest['diff'] = contest['rpct']-contest['dpct'];
+        if(isNaN(contest['diff'])) {
+            contest['diff'] = 0;
+        };
+
+        //test data
+        // var max = maxX-10;
+        // var min = -(maxX-10);
+        // contest['diff'] = Math.random() * (+max - +min) + +min;
+
+        // if (contest['diff'] > 8) {
+        //     contest['winner'] = "GOP";
+        // }
+        // if (contest['diff'] < -8) {
+        //     contest['winner'] = "Dem";
+        // }
+        if ((contest['dpct'] > 0) || (contest['rpct'] > 0) || (contest['winner'])){
+            result.push(contest);
+        }
+    });
+    return result;
+}
+
+
+//// Fill in details for each tool tip 
+function formatToolTip(dot) {
+    var str = "";
+    var deets = "";
+    str = `<h2 class="${dot.winner}">${dot.name}</h2>`;
+    
+    if (dot.dpct > dot.rpct) {
+        deets = `<p class="Dem">${dot.dem} (D)<span class='result'>${dot.dpct}%</span></p>
+                 <p class='GOP'>${dot.gop} (R)<span class='result'>${dot.rpct}%</span></p>`;
+    }
+    else
+    {
+        deets = `<p class="GOP">${dot.gop} (R)<span class='result'>${dot.rpct}%</span></p>
+                 <p class='Dem'>${dot.dem} (D)<span class='result'>${dot.dpct}%</span></p>`;
+    }
+    return str + deets;
+}
+
+//Max range of the graph
+const maxX = 100;
+
+//SVG setup
+const margin = {top: 10, right: 30, bottom: 30, left: 30},
+      width = 800 - margin.left - margin.right,
+      height = 360 - margin.top - margin.bottom;
+
+//x scales
+const x = d3.scaleLinear()
+    .range([0, width])
+    .domain([-(maxX), (maxX)]);
+
+//set up svg
+const svg = d3.select("body")
+    .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+        .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+//tooltip
+const tooltip = d3.select("body")
+    .append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
+const t = d3.transition().duration(500);
+
+//number of bins for histogram
+const nbins = 40;
+
+
+
+function update() {
+    d3.json("https://graphics.axios.com/elections2018/2018-11-06/results/results-top-level.json", function(error, bulkdata) {
+    var rawdata = {};
+    var data = [];
+    
+    // special G logic ---
+    rawdata = bulkdata.G;
+    totals = bulkdata.totals.G;
+
+    // update the cutline
+    cutline = d3.select("#updates")
+                .html(`Total Governorships:<br />${totals.r_notup+totals.r_win} R, ${totals.d_notup+totals.d_win} D; Waiting on ${totals.no_result} more`);
+
+    // --- end special G logic
+
+    // clean up the  data for display
+    data = cleanUp(rawdata);
+
+    console.log(data);
+
+    // x.domain(d3.extent(data, function(d) { return d['diff']; }));
+
+    // console.log(x.domain());
+
+    //histogram binning
+    const histogram = d3.histogram()
+      .domain(x.domain())
+      .thresholds(x.ticks(nbins))
+      .value(function(d) { return d['diff'];} )
+
+    //binning data and filtering out empty bins
+    const bins = histogram(data).filter(d => d.length>0)
+
+    //g container for each bin
+    let binContainer = svg.selectAll(".gBin")
+      .data(bins);
+
+    binContainer.exit().remove()
+
+    let binContainerEnter = binContainer.enter()
+      .append("g")
+        .attr("class", "gBin")
+        .attr("transform", d => `translate(${x(d.x0)}, ${height})`)
+
+    //need to populate the bin containers with data the first time
+    binContainerEnter.selectAll("circle")
+        .data(d => d.map((p, i) => {
+            return {idx: i,
+                    name: p['race'],
+                    gop: p['gop'],
+                    rpct: p['rpct'],
+                    dem: p['dem'],
+                    dpct: p['dpct'],
+                    value: p['diff'],
+                    winner: p['winner'],
+                    radius: (x(d.x1)-x(d.x0))/2
+                }
+        }))
+      .enter()
+      .append("circle")
+        .attr("class", function(d) { return d.winner ? d.winner : "enter"; })
+        .attr("cx", 0) //g element already at correct x pos
+        .attr("cy", function(d) {
+            return - d.idx * 2 * d.radius - d.radius; })
+        .attr("r", 0)
+        .on("mouseover", tooltipOn)
+        .on("mouseout", tooltipOff)
+        .transition()
+          .duration(500)
+          .attr("r", function(d) {
+          return (d.length==0) ? 0 : d.radius; })
+    
+    binContainerEnter.merge(binContainer)
+        .attr("transform", d => `translate(${x(d.x0)}, ${height})`)
+
+    //enter/update/exit for circles, inside each container
+    let dots = binContainer.selectAll("circle")
+        .data(d => d.map((p, i) => {
+            return {idx: i,
+                    name: p['race'],
+                    gop: p['gop'],
+                    rpct: p['rpct'],
+                    dem: p['dem'],
+                    dpct: p['dpct'],
+                    value: p['diff'],
+                    winner: p['winner'],
+                    radius: (x(d.x1)-x(d.x0))/2
+                }
+        }))
+
+    //ENTER new elements present in new data.
+    dots.enter()
+        .append("circle")
+        .attr("class", function(d) { return d.winner ? d.winner : "enter"; })
+        .attr("cx", 0) //g element already at correct x pos
+        .attr("cy", function(d) {
+            return - d.idx * 2 * d.radius - d.radius; })
+        .attr("r", 0)
+        .merge(dots)
+        .on("mouseover", tooltipOn)
+        .on("mouseout", tooltipOff)
+        .transition()
+            .duration(500)
+            .attr("r", function(d) {
+                return (d.length==0) ? 0 : d.radius;
+            })
+  });//d3.csv
+};//update
+
+
+
+function tooltipOn(d) {
+  //x position of parent g element
+  let gParent = d3.select(this.parentElement)
+  let translateValue = gParent.attr("transform")
+
+  let gX = translateValue.split(",")[0].split("(")[1]
+  let gY = height + (+d3.select(this).attr("cy")-50)
+
+  d3.select(this)
+    .classed("selected", true)
+  tooltip.transition()
+       .duration(200)
+       .style("opacity", .9);
+  tooltip.html(formatToolTip(d))
+    .style("left", gX + "px")
+    .style("top", gY + "px");
+}//tooltipOn
+
+function tooltipOff(d) {
+  d3.select(this)
+      .classed("selected", false);
+    tooltip.transition()
+         .duration(500)
+         .style("opacity", 0);
+}//tooltipOff
+
+
+
+// add x axis
+svg.append("g")
+  .attr("class", "axis axis--x")
+  .attr("transform", "translate(0," + height + ")")
+  .call(d3.axisBottom(x));
+
+//draw everything
+update();
+
+</script>
+</body>
