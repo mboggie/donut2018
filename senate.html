@@ -104,8 +104,10 @@ function cleanUp(races) {
         contest['incumbent'] = null;
         contest['race'] = races[r][1];
         contest['id'] = r;
+        contest['rpct'] = 0;
+        contest['dpct'] = 0;
         races[r][2].forEach(function(c){
-            if(c[2] == "GOP"){
+            if((c[2] == "GOP") && ((c[3]*100) > contest['rpct'])) {
                 contest['gop'] = c[0] + " " + c[1];
                 contest['rpct'] = (c[3]*100).toFixed(2);
                 if(c[7] == 1) {
@@ -119,7 +121,7 @@ function cleanUp(races) {
                     contest['winner'] = "GOP";
                 }
             }
-            else if((c[2] == "Dem") || (c[1] == "Sanders")){
+            else if(((((c[2] == "Dem") && (races[r][1] != "Maine")) || (c[1] == "Sanders") || ((c[1] == "King") && (races[r][1] == "Maine")))) && ((c[3]*100) > contest['dpct'])){
                 contest['dem'] = c[0] + " " + c[1];
                 contest['dpct'] = (c[3]*100).toFixed(2);
                 if(c[7] == 1) {
@@ -134,10 +136,14 @@ function cleanUp(races) {
                 }
             }   
         })
-        contest['diff'] = contest['rpct']-contest['dpct'];
-        if(isNaN(contest['diff'])) {
-            contest['diff'] = 0;
+        if(isNaN(contest['rpct'])) {
+            contest['rpct'] = 0;
         };
+        if(isNaN(contest['dpct'])) {
+            contest['dpct'] = 0;
+        };
+        contest['diff'] = contest['rpct']-contest['dpct'];
+
 
         //test data
         // var max = maxX-10;
